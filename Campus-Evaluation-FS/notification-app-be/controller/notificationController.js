@@ -1,4 +1,4 @@
-import Notification from "../models/Notification.js";
+import notifications from "../data/notifications.js";
 import logger from "../utils/logger.js";
 
 // Create Notification
@@ -6,17 +6,29 @@ export const createNotification = async (req, res) => {
     try {
         const { studentId, title, message, notificationType } = req.body;
 
-        const notification = await Notification.create({
+        if (!studentId || !title || !message || !notificationType) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required",
+            });
+        }
+
+        const notification = {
+            id: Date.now().toString(),
             studentId,
             title,
             message,
             notificationType,
-        });
+            isRead: false,
+            createdAt: new Date(),
+        };
+
+        notifications.push(notification);
 
         await logger(
             "INFO",
-            "NotificationController",
-            `Notification created for Student ${studentId}`
+            "Notification Controller",
+            "Notification Created Successfully"
         );
 
         res.status(201).json({
@@ -25,11 +37,7 @@ export const createNotification = async (req, res) => {
             data: notification,
         });
     } catch (error) {
-        await logger(
-            "ERROR",
-            "NotificationController",
-            error.message
-        );
+        await logger("ERROR", "Notification Controller", error.message);
 
         res.status(500).json({
             success: false,
@@ -41,27 +49,51 @@ export const createNotification = async (req, res) => {
 // Get All Notifications
 export const getNotifications = async (req, res) => {
     try {
-        const notifications = await Notification.find().sort({
-            createdAt: -1,
-        });
+        const { type, status, search } = req.query;
+
+        let filteredNotifications = [...notifications];
+
+        if (type && type !== "All") {
+            filteredNotifications = filteredNotifications.filter(
+                (item) => item.notificationType === type
+            );
+        }
+
+        if (status === "read") {
+            filteredNotifications = filteredNotifications.filter(
+                (item) => item.isRead
+            );
+        }
+
+        if (status === "unread") {
+            filteredNotifications = filteredNotifications.filter(
+                (item) => !item.isRead
+            );
+        }
+
+        if (search) {
+            const normalizedSearch = search.toLowerCase();
+            filteredNotifications = filteredNotifications.filter(
+                (item) =>
+                    item.title.toLowerCase().includes(normalizedSearch) ||
+                    item.message.toLowerCase().includes(normalizedSearch) ||
+                    item.studentId.toLowerCase().includes(normalizedSearch)
+            );
+        }
 
         await logger(
             "INFO",
-            "NotificationController",
-            "Fetched all notifications"
+            "Notification Controller",
+            "Fetched All Notifications"
         );
 
         res.status(200).json({
             success: true,
-            count: notifications.length,
-            data: notifications,
+            count: filteredNotifications.length,
+            data: filteredNotifications,
         });
     } catch (error) {
-        await logger(
-            "ERROR",
-            "NotificationController",
-            error.message
-        );
+        await logger("ERROR", "Notification Controller", error.message);
 
         res.status(500).json({
             success: false,
@@ -70,10 +102,12 @@ export const getNotifications = async (req, res) => {
     }
 };
 
-// Get Notification By Id
+// Get Notification By ID
 export const getNotificationById = async (req, res) => {
     try {
-        const notification = await Notification.findById(req.params.id);
+        const notification = notifications.find(
+            (item) => item.id === req.params.id
+        );
 
         if (!notification) {
             return res.status(404).json({
@@ -84,8 +118,8 @@ export const getNotificationById = async (req, res) => {
 
         await logger(
             "INFO",
-            "NotificationController",
-            `Fetched notification ${req.params.id}`
+            "Notification Controller",
+            "Fetched Notification By ID"
         );
 
         res.status(200).json({
@@ -93,11 +127,7 @@ export const getNotificationById = async (req, res) => {
             data: notification,
         });
     } catch (error) {
-        await logger(
-            "ERROR",
-            "NotificationController",
-            error.message
-        );
+        await logger("ERROR", "Notification Controller", error.message);
 
         res.status(500).json({
             success: false,
@@ -109,38 +139,35 @@ export const getNotificationById = async (req, res) => {
 // Update Notification
 export const updateNotification = async (req, res) => {
     try {
-        const notification = await Notification.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            {
-                new: true,
-            }
+        const index = notifications.findIndex(
+            (item) => item.id === req.params.id
         );
 
-        if (!notification) {
+        if (index === -1) {
             return res.status(404).json({
                 success: false,
                 message: "Notification Not Found",
             });
         }
 
+        notifications[index] = {
+            ...notifications[index],
+            ...req.body,
+        };
+
         await logger(
             "INFO",
-            "NotificationController",
-            `Updated notification ${req.params.id}`
+            "Notification Controller",
+            "Notification Updated Successfully"
         );
 
         res.status(200).json({
             success: true,
             message: "Notification Updated Successfully",
-            data: notification,
+            data: notifications[index],
         });
     } catch (error) {
-        await logger(
-            "ERROR",
-            "NotificationController",
-            error.message
-        );
+        await logger("ERROR", "Notification Controller", error.message);
 
         res.status(500).json({
             success: false,
@@ -152,21 +179,23 @@ export const updateNotification = async (req, res) => {
 // Delete Notification
 export const deleteNotification = async (req, res) => {
     try {
-        const notification = await Notification.findByIdAndDelete(
-            req.params.id
+        const index = notifications.findIndex(
+            (item) => item.id === req.params.id
         );
 
-        if (!notification) {
+        if (index === -1) {
             return res.status(404).json({
                 success: false,
                 message: "Notification Not Found",
             });
         }
 
+        notifications.splice(index, 1);
+
         await logger(
             "INFO",
-            "NotificationController",
-            `Deleted notification ${req.params.id}`
+            "Notification Controller",
+            "Notification Deleted Successfully"
         );
 
         res.status(200).json({
@@ -174,11 +203,7 @@ export const deleteNotification = async (req, res) => {
             message: "Notification Deleted Successfully",
         });
     } catch (error) {
-        await logger(
-            "ERROR",
-            "NotificationController",
-            error.message
-        );
+        await logger("ERROR", "Notification Controller", error.message);
 
         res.status(500).json({
             success: false,
@@ -190,10 +215,8 @@ export const deleteNotification = async (req, res) => {
 // Mark Notification As Read
 export const markAsRead = async (req, res) => {
     try {
-        const notification = await Notification.findByIdAndUpdate(
-            req.params.id,
-            { isRead: true },
-            { new: true }
+        const notification = notifications.find(
+            (item) => item.id === req.params.id
         );
 
         if (!notification) {
@@ -203,10 +226,12 @@ export const markAsRead = async (req, res) => {
             });
         }
 
+        notification.isRead = true;
+
         await logger(
             "INFO",
-            "NotificationController",
-            `Marked notification ${req.params.id} as read`
+            "Notification Controller",
+            "Notification Marked As Read"
         );
 
         res.status(200).json({
@@ -215,11 +240,7 @@ export const markAsRead = async (req, res) => {
             data: notification,
         });
     } catch (error) {
-        await logger(
-            "ERROR",
-            "NotificationController",
-            error.message
-        );
+        await logger("ERROR", "Notification Controller", error.message);
 
         res.status(500).json({
             success: false,

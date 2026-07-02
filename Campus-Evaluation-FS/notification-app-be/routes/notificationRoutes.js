@@ -7,14 +7,15 @@ import {
     updateNotification,
     deleteNotification,
     markAsRead,
-} from "../controllers/notificationController.js";
-
+} from "../controller/notificationController.js";
 import loggerMiddleware from "../middleware/loggerMiddleware.js";
 
 const router = express.Router();
 
+// Logging Middleware
 router.use(loggerMiddleware);
 
+// Routes
 router.post("/", createNotification);
 
 router.get("/", getNotifications);
